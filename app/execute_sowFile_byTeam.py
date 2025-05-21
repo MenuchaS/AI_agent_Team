@@ -11,7 +11,7 @@ import logging
 from dotenv import load_dotenv
 import sys
 
-# Load environment variables from .env fileimage.png
+# Load environment variables from .env 
 load_dotenv()
 
 # Get environment variables with error handling
@@ -386,6 +386,7 @@ def execute_team(team_members: List[TeamMember], tasks: Dict[str, List[str]]) ->
         logging.error(traceback.format_exc())
         raise
 
+# For Running the Backend (No UI) 
 def main():
     try:
         # Setup logging

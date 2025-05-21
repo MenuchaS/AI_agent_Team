@@ -90,6 +90,17 @@ ZIPEER_MCP_ENDPOINT=your_zapier_webhook_url
 ---
 
 ## 🧪 Running the Backend (No UI)
+> 🛠 **Important:** When running the backend (non-UI mode), make sure you manually create the following before execution:
+>
+> 1. A folder named `docs` inside the root directory (if it doesn't exist).
+> 2. Inside `docs/`, place your SOW input file named exactly:
+>
+> ```
+> sow_file.docx
+> ```
+>
+> The system will look for the file at: `./docs/sow_file.docx` by default.
+
 
 To run the full SOW processing pipeline from the terminal (headless mode):
 
