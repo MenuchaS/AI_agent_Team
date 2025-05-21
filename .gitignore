@@ -1,4 +1,5 @@
 .env
+docs/
 echo ".env
 __pycache__/
 *.log
