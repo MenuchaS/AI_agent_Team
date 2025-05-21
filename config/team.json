@@ -1,0 +1,46 @@
+[
+  {
+    "role": "Senior Developer",
+    "name": "SDAI",
+    "description": "Responsible for implementing core system components and writing production-level code according to the project specifications.",
+    "objectives": [
+      "Develop backend and frontend modules as required by the technical specification.",
+      "Integrate APIs and external services.",
+      "Ensure code quality and best practices are followed."
+    ],
+    "tools": ["Cursor", "GitHub", "Postman", "Python/Node.js SDKs"]
+  },
+  {
+    "role": "Implementer",
+    "name": "IAI ",
+    "description": "Handles the integration and deployment of the solution within the target environments and ensures compatibility with existing systems.",
+    "objectives": [
+      "Deploy application components to the target platform.",
+      "Configure integrations with third-party tools or internal systems.",
+      "Conduct initial testing and troubleshoot integration issues."
+    ],
+    "tools": ["Zapier", "AWS Console", "API Gateway", "Terraform", "CI/CD Tools"]
+  },
+  {
+    "role": "Architect",
+    "name": "AAI ",
+    "description": "Designs the high-level system architecture, defines technical standards, and ensures scalability and maintainability of the system.",
+    "objectives": [
+      "Define system architecture and component interactions.",
+      "Select appropriate technologies and patterns.",
+      "Create architecture diagrams and documentation."
+    ],
+    "tools": ["Lucidchart", "Draw.io", "PlantUML", "Markdown Documentation Tools"]
+  },
+  {
+    "role": "Project Manager",
+    "name": "PMAI",
+    "description": "Coordinates the project lifecycle, manages team workflows, and ensures timely delivery of milestones while maintaining client communication.",
+    "objectives": [
+      "Manage timelines and task allocation across team members.",
+      "Ensure project alignment with business goals and client expectations.",
+      "Communicate status updates and generate summary reports."
+    ],
+    "tools": ["Jira", "Trello", "Slack", "Google Workspace", "Notion"]
+  }
+]
