@@ -1,4 +1,4 @@
- 🤖 AI Team Manager – Automate Task Execution from SOW Documents
+# 🤖 AI Team Manager – Automate Task Execution from SOW Documents
 
 An AI-powered team coordination platform for automating task execution from a structured Statement of Work (SOW) document.  
 This system leverages an AI agent team, orchestrated through MCP (Model Context Protocol), with a modern web UI and detailed activity tracking.
