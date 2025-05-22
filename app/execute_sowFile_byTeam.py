@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional, Type
 import time
 from datetime import datetime
 from crewai import Agent, Task, Crew, Process
-from langchain.tools import Tool, BaseTool
+from crewai.tools import BaseTool
 import logging
 from dotenv import load_dotenv
 import sys
@@ -32,7 +32,8 @@ os.environ["ZIPEER_MCP_ENDPOINT"] = ZIPEER_MCP_ENDPOINT
 
 # File paths
 TEAM_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'team.json')
-SOW_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docs', 'sow_file.docx') 
+DOCS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docs')
+SOW_FILE = os.path.join(DOCS_DIR, 'sow_file.docx')
 
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -80,33 +81,49 @@ def setup_logging():
         print(f"Error setting up logging: {str(e)}")
         raise
 
-# Define tool mapping as dictionaries
+# Define custom tools as BaseTool instances
+class CursorTool(BaseTool):
+    name: str = "Cursor"
+    description: str = "IDE tool for code editing and development"
+    
+    def _run(self, query: str) -> str:
+        return f"Using Cursor IDE for: {query}"
+
+class GitHubTool(BaseTool):
+    name: str = "GitHub"
+    description: str = "Version control and code repository management"
+    
+    def _run(self, query: str) -> str:
+        return f"Using GitHub for: {query}"
+
+class PostmanTool(BaseTool):
+    name: str = "Postman"
+    description: str = "API testing and development tool"
+    
+    def _run(self, query: str) -> str:
+        return f"Using Postman for: {query}"
+
+class PythonSDKTool(BaseTool):
+    name: str = "Python SDK"
+    description: str = "Python development tools and libraries"
+    
+    def _run(self, query: str) -> str:
+        return f"Using Python SDK for: {query}"
+
+class NodeSDKTool(BaseTool):
+    name: str = "Node.js SDK"
+    description: str = "Node.js development tools and libraries"
+    
+    def _run(self, query: str) -> str:
+        return f"Using Node.js SDK for: {query}"
+
+# Define tool mapping
 TOOL_MAPPING = {
-    "Cursor": {
-        "name": "Cursor",
-        "description": "IDE tool for code editing and development",
-        "func": lambda query: f"Using Cursor IDE for: {query}"
-    },
-    "GitHub": {
-        "name": "GitHub",
-        "description": "Version control and code repository management",
-        "func": lambda query: f"Using GitHub for: {query}"
-    },
-    "Postman": {
-        "name": "Postman",
-        "description": "API testing and development tool",
-        "func": lambda query: f"Using Postman for: {query}"
-    },
-    "Python SDK": {
-        "name": "Python SDK",
-        "description": "Python development tools and libraries",
-        "func": lambda query: f"Using Python SDK for: {query}"
-    },
-    "Node.js SDK": {
-        "name": "Node.js SDK",
-        "description": "Node.js development tools and libraries",
-        "func": lambda query: f"Using Node.js SDK for: {query}"
-    }
+    "Cursor": CursorTool(),
+    "GitHub": GitHubTool(),
+    "Postman": PostmanTool(),
+    "Python SDK": PythonSDKTool(),
+    "Node.js SDK": NodeSDKTool()
 }
 
 class TeamMember:
@@ -168,10 +185,29 @@ class TeamAgentCreator:
         """Get all tasks from all agents"""
         return [task for tasks in self.tasks.values() for task in tasks]
 
+def create_required_directories():
+    """Create required directories if they don't exist"""
+    directories = [
+        os.path.dirname(TEAM_FILE),  # config directory
+        DOCS_DIR,  # docs directory
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')  # logs directory
+    ]
+    
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+            print(f"Created directory: {directory}")
+
 def extract_text_from_docx(docx_path: str) -> str:
     """Extract text from a DOCX file"""
-    doc = Document(docx_path)
-    return "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+    if not os.path.exists(docx_path):
+        raise FileNotFoundError(f"SOW file not found at: {docx_path}\nPlease make sure to place your SOW file in the 'docs' directory.")
+    
+    try:
+        doc = Document(docx_path)
+        return "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+    except Exception as e:
+        raise Exception(f"Error reading SOW file: {str(e)}")
 
 def split_text_into_chunks(text: str, max_chunk_size: int = 8000, overlap: int = 200) -> List[str]:
     """
@@ -224,58 +260,82 @@ class SOWAnalyzer:
         """Analyze SOW and generate tasks for each team member"""
         tasks_by_role = {member.role: [] for member in self.team_members}
         
+        # Prepare team members information
+        team_info = "\n".join([
+            f"Role: {member.role}\n"
+            f"Name: {member.name}\n"
+            f"Description: {member.description}\n"
+            f"Objectives: {', '.join(member.objectives)}\n"
+            f"Tools: {', '.join([tool.name for tool in member.tools])}\n"
+            for member in self.team_members
+        ])
+        
+        # Process each chunk
+        for i, chunk in enumerate(self.chunks):
+            print(f"✅Processing chunk {i+1}/{len(self.chunks)}")
+            
+            prompt = f"""
+            Based on the following section of the SOW document, generate specific, actionable tasks for each team member.
+            Focus on concrete, project-specific tasks rather than general responsibilities.
+            
+            Team Members Information:
+            {team_info}
+            
+            SOW Content (Section {i+1} of {len(self.chunks)}):
+            {chunk}
+            
+            Generate a JSON object where:
+            - Keys are team member roles
+            - Values are arrays of specific, actionable tasks for that role
+            
+            Each task should be concrete and measurable.
+            
+            Example of good tasks:
+            - "Create database schema for committee members table with fields: id, name, role, contact_info"
+            - "Implement API endpoint for submitting new tender requests"
+            - "Design user interface for committee meeting agenda creation"
+            
+            Example of bad tasks (too general):
+            - "Write code"
+            - "Test the system"
+            - "Document the project"
+            
+            Format the response as a JSON object like this:
+            {{
+                "Role1": ["task1", "task2", ...],
+                "Role2": ["task1", "task2", ...],
+                ...
+            }}
+            """
+            
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7
+                )
+                
+                # Parse the response and update tasks
+                chunk_tasks = json.loads(response.choices[0].message.content)
+                
+                # Merge tasks from this chunk with existing tasks
+                for role, tasks in chunk_tasks.items():
+                    if role in tasks_by_role:
+                        # Add new tasks to existing ones
+                        tasks_by_role[role].extend(tasks)
+                
+            except json.JSONDecodeError as e:
+                print(f"❌Error parsing tasks for chunk {i+1}: {str(e)}")
+            except Exception as e:
+                print(f"❌Error processing chunk {i+1}: {str(e)}")
+        
+        # Remove duplicates and update team members
         for member in self.team_members:
-            print(f"✅Analyzing tasks for {member.role}...")
-            all_tasks = []
-            
-            for i, chunk in enumerate(self.chunks):
-                print(f"✅Processing chunk {i+1}/{len(self.chunks)} for {member.role}")
-                prompt = f"""
-                Based on the following section of the SOW document, generate specific, actionable tasks for {member.role} ({member.name}).
-                Focus on concrete, project-specific tasks rather than general responsibilities.
-                
-                Team Member Details:
-                Role: {member.role}
-                Description: {member.description}
-                Objectives: {', '.join(member.objectives)}
-                Tools: {', '.join([tool['name'] for tool in member.tools])}
-                
-                SOW Content (Section {i+1} of {len(self.chunks)}):
-                {chunk}
-                
-                Generate a list of specific, actionable tasks that are directly related to this project and SOW.
-                Each task should be concrete and measurable.
-                Format the response as a JSON array of task strings.
-                
-                Example of good tasks:
-                - "Create database schema for committee members table with fields: id, name, role, contact_info"
-                - "Implement API endpoint for submitting new tender requests"
-                - "Design user interface for committee meeting agenda creation"
-                
-                Example of bad tasks (too general):
-                - "Write code"
-                - "Test the system"
-                - "Document the project"
-                """
-                
-                try:
-                    response = client.chat.completions.create(
-                        model="gpt-4",
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.7
-                    )
-                    
-                    chunk_tasks = json.loads(response.choices[0].message.content)
-                    all_tasks.extend(chunk_tasks)
-                except json.JSONDecodeError:
-                    print(f"❌Error parsing tasks for {member.role} in chunk {i+1}")
-                except Exception as e:
-                    print(f"❌Error processing chunk {i+1} for {member.role}: {str(e)}")
-            
-            # Remove duplicates and update tasks
-            unique_tasks = list(set(all_tasks))
-            tasks_by_role[member.role] = unique_tasks
-            member.tasks = unique_tasks
+            if member.role in tasks_by_role:
+                # Remove duplicates while preserving order
+                unique_tasks = list(dict.fromkeys(tasks_by_role[member.role]))
+                tasks_by_role[member.role] = unique_tasks
+                member.tasks = unique_tasks
         
         return tasks_by_role
 
@@ -294,7 +354,7 @@ def save_results_to_json(agents: Dict[str, Agent], tasks: Dict[str, List[str]], 
                 "name": agent.role,
                 "goal": agent.goal,
                 "backstory": agent.backstory,
-                "tools": [tool['name'] for tool in agent.tools]
+                "tools": [tool.name for tool in agent.tools]
             }
             for role, agent in agents.items()
         },
@@ -352,7 +412,11 @@ def execute_team(team_members: List[TeamMember], tasks: Dict[str, List[str]]) ->
         crew = Crew(
             agents=list(agents.values()),
             tasks=agent_creator.get_all_tasks(),
-            process=Process.sequential
+            process=Process.sequential,
+            verbose=True,
+            max_rpm=10,  # הגבלת בקשות לדקה
+            max_tokens_per_agent=500,  # הגבלת טוקנים לכל agent
+            max_input_tokens=1000  # הגבלת טוקנים בקלט
         )
         
         #run agents in parallel
@@ -367,7 +431,7 @@ def execute_team(team_members: List[TeamMember], tasks: Dict[str, List[str]]) ->
                     "name": agent.role,
                     "goal": agent.goal,
                     "backstory": agent.backstory,
-                    "tools": [tool['name'] for tool in agent.tools],
+                    "tools": [tool.name for tool in agent.tools],
                     "assigned_tasks": len(agent_creator.tasks.get(role, []))
                 }
                 for role, agent in agents.items()
@@ -392,7 +456,7 @@ def execute_team(team_members: List[TeamMember], tasks: Dict[str, List[str]]) ->
             logging.info(f"Role: {agent.role}")
             logging.info(f"Goal: {agent.goal}")
             logging.info(f"Backstory: {agent.backstory}")
-            logging.info(f"Tools: {', '.join([tool['name'] for tool in agent.tools])}")
+            logging.info(f"Tools: {', '.join([tool.name for tool in agent.tools])}")
             logging.info(f"Assigned Tasks: {len(agent_creator.tasks.get(role, []))}")
         
         logging.info(f"\nCrew Execution Result: {result}")
@@ -408,6 +472,9 @@ def execute_team(team_members: List[TeamMember], tasks: Dict[str, List[str]]) ->
 # For Running the Backend (No UI) 
 def main():
     try:
+        # Create required directories
+        create_required_directories()
+        
         # Setup logging
         log_file = setup_logging()
         if not log_file:
@@ -425,6 +492,13 @@ def main():
         
         # Load and analyze SOW
         print("Loading SOW file...")
+        if not os.path.exists(SOW_FILE):
+            print(f"\n❌ SOW file not found at: {SOW_FILE}")
+            print("Please make sure to:")
+            print("1. Create a 'docs' directory in your project root")
+            print("2. Place your SOW file (sow_file.docx) in the 'docs' directory")
+            return
+            
         sow_text = extract_text_from_docx(SOW_FILE)
         logging.info(f"SOW text length: {len(sow_text)} characters")
         print(f"SOW text length: {len(sow_text)} characters")
