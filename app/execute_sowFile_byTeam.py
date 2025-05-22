@@ -39,7 +39,7 @@ SOW_FILE = os.path.join(DOCS_DIR, 'sow_file.docx')
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Setup logging
-def setup_logging():
+def setup_logging(extra_handlers=None):
     """Setup logging configuration"""
     try:
         # Get the current directory
@@ -55,14 +55,18 @@ def setup_logging():
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         log_file = os.path.join(log_dir, f'agent_actions_{timestamp}.log')
         
+        handlers = [
+            logging.FileHandler(log_file, encoding="utf-8", mode="w"),
+            logging.StreamHandler()
+        ]
+        if extra_handlers:
+            handlers.extend(extra_handlers)
+
         # Configure logging
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file, encoding='utf-8', mode='w'),
-                logging.StreamHandler()
-            ]
+            handlers=handlers
         )
         
         # Test logging
