@@ -57,60 +57,6 @@ st.markdown("""
         white-space: pre-wrap;
         word-wrap: break-word;
     }
-    .activity-entry {
-        background-color: #f8f9fa;
-        border-left: 4px solid #007bff;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 0.5rem;
-    }
-    .activity-header {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 0.5rem;
-    }
-    .role-badge {
-        background-color: #007bff;
-        color: white;
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.25rem;
-        font-size: 0.875rem;
-    }
-    .timestamp {
-        color: #6c757d;
-        font-size: 0.875rem;
-    }
-    .activity-content {
-        color: #212529;
-    }
-    .status-card {
-        background-color: #fff;
-        border: 1px solid #dee2e6;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .status-indicator {
-        font-size: 1.25rem;
-        margin: 0.5rem 0;
-    }
-    .current-task {
-        color: #6c757d;
-        font-size: 0.875rem;
-    }
-    .result-card {
-        background-color: #fff;
-        border: 1px solid #dee2e6;
-        border-radius: 0.5rem;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .result-card h3 {
-        color: #007bff;
-        margin-bottom: 1rem;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -142,7 +88,6 @@ def upload_sow_file():
             if not os.path.exists(docs_dir):
                 os.makedirs(docs_dir)
             file_path = os.path.join(docs_dir, f'sow_file_{timestamp}.docx')
-            
             # Save the uploaded file
             with open(file_path, 'wb') as f:
                 f.write(uploaded_file.getbuffer())
@@ -174,55 +119,47 @@ def analyze_sow():
                 # Initialize analyzer and generate tasks
                 analyzer = SOWAnalyzer(sow_text, team_members)
                 tasks = analyzer.analyze_and_generate_tasks()
-                st.session_state.tasks = tasks
                 
-                st.success("Analysis completed!")
+                # Check if tasks were generated successfully
+                if not tasks or not any(tasks.values()):
+                    st.error("❌ Failed to generate tasks. There might be an issue with your OpenAI API key or it has run out of credit.")
+                    st.info("Please check your API key at https://platform.openai.com/account/usage")
+                    st.session_state.tasks = None  # Clear any partial tasks
+                    return False
+                
+                st.session_state.tasks = tasks
+                st.success("✅ Analysis completed successfully!")
                 return True
+                
             except Exception as e:
-                st.error(f"Error analyzing SOW: {str(e)}")
+                error_msg = str(e).lower()
+                if "insufficient_quota" in error_msg or "429" in error_msg:
+                    st.error("❌ OpenAI API key has run out of credit")
+                    st.info("Please check your account at https://platform.openai.com/account/usage")
+                else:
+                    st.error(f"❌ An error occurred: {str(e)}")
+                
+                st.session_state.tasks = None  # Clear any partial tasks
                 return False
     return False
 
-def display_tasks_and_controls():
-    """Display tasks for each team member (collapsed by default) and control buttons, always at the top."""
-    if st.session_state.tasks:
+def display_tasks():
+    """Display tasks for each team member"""
+    if st.session_state.tasks and any(st.session_state.tasks.values()):
         st.markdown("## 📋 Task Distribution")
+        
         for role, role_tasks in st.session_state.tasks.items():
-            with st.expander(f"Tasks for {role}", expanded=False):
-                for i, task in enumerate(role_tasks, 1):
-                    st.markdown(f"{i}. {task}")
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.button(
-                "Start Team Execution",
-                type="primary",
-                disabled=st.session_state.execution_started,
-                key="start_team_execution_btn",
-                on_click=lambda: setattr(st.session_state, "execution_started", True)
-            )
-        with col2:
-            st.button(
-                "Stop Team Execution",
-                type="secondary",
-                disabled=not st.session_state.execution_started,
-                key="stop_team_execution_btn",
-                on_click=lambda: stop_team_execution()
-            )
-
-def show_logs_expander():
-    """Show collapsible logs section above team activity/status."""
-    with st.expander("📝 Detailed Execution Logs", expanded=False):
-        logs = st.session_state.get('logs', [])
-        if logs:
-            st.code('\n'.join(logs[-50:]), language='text')
-        else:
-            st.info("No logs yet.")
-
-def stop_team_execution():
-    """Stop the team execution and reset relevant state."""
-    st.session_state.execution_started = False
-    st.session_state.execution_completed = False
-
+            if role_tasks:  # Only show roles with tasks
+                with st.expander(f"Tasks for {role}", expanded=True):
+                    for i, task in enumerate(role_tasks, 1):
+                        st.markdown(f"{i}. {task}")
+        
+        if st.button("Start Team Execution", type="primary"):
+            st.session_state.execution_started = True
+            return True
+    else:
+        st.warning("⚠️ No tasks available to display. Please ensure the analysis completed successfully.")
+    return False
 
 def execute_team_tasks():
     """Execute team tasks and display live updates"""
@@ -231,116 +168,81 @@ def execute_team_tasks():
         log_file = setup_logging()
         st.session_state.log_file = log_file
         
-        # Create main container for the execution view
-        execution_container = st.container()
+        # Create containers for live updates
+        activity_container = st.container()
+        log_container = st.container()
         
-        # Create two columns for the layout
-        col1, col2 = execution_container.columns([2, 1])
-        
-        with col1:
-            st.markdown("### 🤖 Team Activity")
-            activity_container = st.container()
-            activity_placeholder = activity_container.empty()
-        
-        with col2:
-            st.markdown("### 📊 Team Status")
-            status_container = st.container()
-            status_placeholder = status_container.empty()
-        
-        # Create a container for detailed logs
-        logs_expander = st.expander("📝 Detailed Execution Logs", expanded=False)
-        with logs_expander:
-            log_placeholder = st.empty()
-        
-        # Initialize activity tracking
-        current_activity = []
-        current_logs = []
-        team_status = {role: {"status": "⏳ Waiting", "current_task": None} for role in st.session_state.tasks.keys()}
-        
-        def update_display():
-            """Update the display with current activity and logs"""
-            # Update activity display
-            activity_text = ""
-            for activity in current_activity[-10:]:  # Show last 10 activities
-                activity_text += f"""
-                <div class="activity-entry">
-                    <div class="activity-header">
-                        <span class="role-badge">{activity['role']}</span>
-                        <span class="timestamp">{activity['timestamp']}</span>
-                    </div>
-                    <div class="activity-content">
-                        {activity['action']}
-                    </div>
-                </div>
-                """
-            activity_placeholder.markdown(activity_text, unsafe_allow_html=True)
-            
-            # Update team status
-            status_text = ""
-            for role, status in team_status.items():
-                status_text += f"""
-                <div class="status-card">
-                    <h4>{role}</h4>
-                    <div class="status-indicator">{status['status']}</div>
-                    <div class="current-task">{status['current_task'] or 'No active task'}</div>
-                </div>
-                """
-            status_placeholder.markdown(status_text, unsafe_allow_html=True)
-            
-            # Update logs in the expander
-            if current_logs:
-                log_text = "\n".join(current_logs[-50:])  # Show last 50 logs
-                log_placeholder.code(log_text)
-        
-        # Custom logging handler
-        class StreamlitLogHandler(logging.Handler):
-            def emit(self, record):
-                log_entry = self.format(record)
-                current_logs.append(log_entry)
+        # Execute team
+        with st.spinner("Executing team tasks..."):
+            try:
+                # Create a placeholder for the activity log
+                activity_placeholder = activity_container.empty()
+                log_placeholder = log_container.empty()
                 
-                # Parse the log message to update team status
-                if "Created agent for" in record.msg:
-                    role = record.msg.split("Created agent for ")[1].split(":")[0]
-                    team_status[role]["status"] = "✅ Ready"
-                elif "Assigned task to" in record.msg:
-                    role = record.msg.split("Assigned task to ")[1].split(":")[0]
-                    task = record.msg.split(": ")[1]
-                    team_status[role]["status"] = "🔄 Working"
-                    team_status[role]["current_task"] = task
-                elif "completed task" in record.msg.lower():
-                    role = record.msg.split()[0]
-                    team_status[role]["status"] = "✅ Task Completed"
+                # Start with empty logs
+                current_activity = []
+                current_logs = []
                 
-                # Add to activity log
-                current_activity.append({
-                    "role": role if "role" in locals() else "System",
-                    "action": record.msg,
-                    "timestamp": datetime.now().strftime("%H:%M:%S")
-                })
+                def update_display():
+                    """Update the display with current activity and logs"""
+                    # Display activity in a nice format
+                    activity_text = "### 🤖 Team Activity\n\n"
+                    for activity in current_activity:
+                        activity_text += f"**{activity['role']}**: {activity['action']}\n\n"
+                    activity_placeholder.markdown(activity_text)
+                    
+                    # Display logs in a code block
+                    log_text = "### 📝 Detailed Logs\n```\n"
+                    log_text += "\n".join(current_logs)
+                    log_text += "\n```"
+                    log_placeholder.markdown(log_text)
                 
-                update_display()
-        
-        # Add the custom handler
-        logger = logging.getLogger()
-        streamlit_handler = StreamlitLogHandler()
-        streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        logger.addHandler(streamlit_handler)
-        
-        try:
-            # Execute team
-            with st.spinner("Executing team tasks..."):
+                # Custom logging handler to capture logs
+                class StreamlitLogHandler(logging.Handler):
+                    def emit(self, record):
+                        log_entry = self.format(record)
+                        current_logs.append(log_entry)
+                        # Keep only last 100 logs
+                        if len(current_logs) > 100:
+                            current_logs.pop(0)
+                        update_display()
+                
+                # Add the custom handler
+                logger = logging.getLogger()
+                streamlit_handler = StreamlitLogHandler()
+                streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+                logger.addHandler(streamlit_handler)
+                
+                # Execute team
                 execution_results = execute_team(
                     st.session_state.team_members,
                     st.session_state.tasks
                 )
-            
-            st.session_state.execution_completed = True
-            
-        except Exception as e:
-            st.error(f"Error during execution: {str(e)}")
-            st.session_state.execution_completed = False
-        finally:
-            logger.removeHandler(streamlit_handler)
+                
+                # Display execution results
+                st.markdown("## 🎯 Execution Results")
+                
+                # Display agent interactions
+                st.markdown("### 🤖 Agent Interactions")
+                for role, agent_info in execution_results["agents"].items():
+                    with st.expander(f"{role} - {agent_info['name']}", expanded=True):
+                        st.markdown(f"**Goal:** {agent_info['goal']}")
+                        st.markdown(f"**Tools:** {', '.join(agent_info['tools'])}")
+                        st.markdown(f"**Tasks Completed:** {agent_info['assigned_tasks']}")
+                
+                # Display final result
+                st.markdown("### 📝 Final Result")
+                st.markdown(execution_results["execution_result"])
+                
+                st.session_state.execution_completed = True
+                st.success("Team execution completed successfully!")
+                
+            except Exception as e:
+                st.error(f"Error during execution: {str(e)}")
+                st.session_state.execution_completed = False
+            finally:
+                # Remove the custom handler
+                logger.removeHandler(streamlit_handler)
 
 def main():
     """Main application function"""
@@ -357,12 +259,11 @@ def main():
     if st.session_state.sow_file and not st.session_state.tasks:
         analyze_sow()
     
-    # Step 3: Always display tasks and control buttons at the top
-    if st.session_state.tasks:
-        display_tasks_and_controls()
-        show_logs_expander()  # logs expander always below controls, above activity
+    # Step 3: Display Tasks
+    if st.session_state.tasks and not st.session_state.execution_started:
+        display_tasks()
     
-    # Step 4: Execute Team (if started) - only activity/status, no tasks/buttons/logs
+    # Step 4: Execute Team
     if st.session_state.execution_started:
         execute_team_tasks()
 
