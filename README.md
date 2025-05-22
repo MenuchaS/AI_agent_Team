@@ -1,4 +1,4 @@
-# 🤖 AI Team Manager – SOW Task Automation
+ 🤖 AI Team Manager – Automate Task Execution from SOW Documents
 
 An AI-powered team coordination platform for automating task execution from a structured Statement of Work (SOW) document.  
 This system leverages an AI agent team, orchestrated through MCP (Model Context Protocol), with a modern web UI and detailed activity tracking.
@@ -16,7 +16,7 @@ The system includes both a command-line backend and a full-featured Streamlit-ba
 
 - 📄 **SOW Upload** – Upload and process a `.docx` file containing structured work statements
 - 🧠 **AI Task Parsing** – Automatically extract tasks and assign them to appropriate AI roles
-- 🧑‍💻 **Agent Execution** – Each role (e.g., Architect, Developer) is represented by a unique AI agent
+- 🧑‍💻 **Agent Execution** – Assign tasks to AI agents by predefined roles (Architect, Developer, PM - config by prompt)
 - 📊 **Live Dashboard** – Track agent activity, logs, and status in real time via the Streamlit UI
 - 📁 **Logging System** – Logs are saved per run in timestamped folders for traceability
 
