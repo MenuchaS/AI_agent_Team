@@ -173,25 +173,44 @@ def extract_text_from_docx(docx_path: str) -> str:
     doc = Document(docx_path)
     return "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
 
-def split_text_into_chunks(text: str, max_chunk_size: int = 4000) -> List[str]:
-    """Split text into smaller chunks of approximately max_chunk_size characters"""
-    words = text.split()
+def split_text_into_chunks(text: str, max_chunk_size: int = 8000, overlap: int = 200) -> List[str]:
+    """
+    Split text into chunks with overlap to maintain context.
+    
+    Args:
+        text: The text to split
+        max_chunk_size: Maximum size of each chunk in characters
+        overlap: Number of characters to overlap between chunks
+    
+    Returns:
+        List of text chunks
+    """
+    if len(text) <= max_chunk_size:
+        return [text]
+        
     chunks = []
-    current_chunk = []
-    current_size = 0
+    start = 0
     
-    for word in words:
-        word_size = len(word) + 1  # +1 for space
-        if current_size + word_size > max_chunk_size:
-            chunks.append(' '.join(current_chunk))
-            current_chunk = [word]
-            current_size = word_size
-        else:
-            current_chunk.append(word)
-            current_size += word_size
-    
-    if current_chunk:
-        chunks.append(' '.join(current_chunk))
+    while start < len(text):
+        # Find the end of the chunk
+        end = start + max_chunk_size
+        
+        # If we're not at the end of the text, try to find a good breaking point
+        if end < len(text):
+            # Look for the last period or newline within the last 200 characters
+            last_period = text.rfind('.', end - 200, end)
+            last_newline = text.rfind('\n', end - 200, end)
+            
+            # Use the later of the two as the break point
+            break_point = max(last_period, last_newline)
+            if break_point > end - 200:  # Only use if it's within our search window
+                end = break_point + 1
+        
+        # Add the chunk
+        chunks.append(text[start:end])
+        
+        # Move the start point, accounting for overlap
+        start = end - overlap
     
     return chunks
 
